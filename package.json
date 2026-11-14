@@ -1,0 +1,20 @@
+{
+  "name": "fiche-bilan-udps",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Fiche Bilan UDPS - application Android (Capacitor)",
+  "scripts": {
+    "sync": "npx cap sync android",
+    "apk": "npx cap sync android && cd android && ./gradlew assembleRelease",
+    "serve": "python3 -m http.server 8080 --directory app"
+  },
+  "dependencies": {
+    "@capacitor/android": "7.0.1",
+    "@capacitor/core": "7.0.1",
+    "@capacitor/filesystem": "7.0.0",
+    "@capacitor/share": "7.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "7.0.1"
+  }
+}
