@@ -48,7 +48,11 @@ Deux options :
 
 Le dossier `app/` est l'application web. L'application doit être servie en **HTTPS**. C'est obligatoire pour le mode hors ligne et l'installation.
 N'importe quel hébergement de fichiers statiques convient : serveur de l'association, OVH, Netlify, GitHub Pages, etc.
-Il suffit de copier le contenu du dossier `app/` tel quel (GitHub Pages fonctionne aussi). Il n'y a ni base de données ni serveur applicatif.
+Il suffit de copier le contenu du dossier `app/` tel quel.
+
+**GitHub Pages (déjà prévu)** : le workflow `.github/workflows/pages.yml` publie `app/` à chaque modification.
+Pour l'activer une fois : Settings → Pages → Source = **GitHub Actions**, puis Actions → « Version web (GitHub Pages) » → Run workflow.
+L'adresse est alors https://forma-st.github.io/UDPS28-bilan/. Elle est publique : elle ne contient que l'application, aucune fiche. Il n'y a ni base de données ni serveur applicatif.
 
 Sur chaque appareil, ouvrez l'adresse **une fois avec du réseau**, puis :
 - **Android (Chrome)** : menu ⋮ → « Installer l'application » (ou « Ajouter à l'écran d'accueil ») ;
