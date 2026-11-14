@@ -226,35 +226,17 @@
     return el('div', { class: 'field w-full' }, el('span', { class: 'flbl', text: it.l }), row);
   }
 
-  /* ---- schéma corporel ---- */
-  const BODY_SVG = (side) => `
-    <g class="body" fill="var(--body-fill)" stroke="var(--body-stroke)" stroke-width="1.2" stroke-linejoin="round">
-      <ellipse cx="50" cy="16" rx="10.5" ry="12.5"/>
-      <rect x="45" y="27" width="10" height="8" rx="2"/>
-      <path d="M31,35 L69,35 Q77,37 77,46 L72,98 Q71,110 66,118 L34,118 Q29,110 28,98 L23,46 Q23,37 31,35 Z"/>
-      <path d="M24,40 Q16,44 15,58 L10,104 Q9,112 11,118 L17,118 Q19,112 19,104 L27,66 Z"/>
-      <path d="M76,40 Q84,44 85,58 L90,104 Q91,112 89,118 L83,118 Q81,112 81,104 L73,66 Z"/>
-      <ellipse cx="13.5" cy="123" rx="4.5" ry="6"/><ellipse cx="86.5" cy="123" rx="4.5" ry="6"/>
-      <path d="M34,116 L49,116 L48,198 Q48,205 44,206 L37,206 Q35,203 36,196 Z"/>
-      <path d="M66,116 L51,116 L52,198 Q52,205 56,206 L63,206 Q65,203 64,196 Z"/>
-      ${side === 'f' ? '<path d="M38,60 Q50,66 62,60" fill="none"/><path d="M50,44 L50,96" fill="none" stroke-dasharray="2 3"/>'
-        : '<path d="M50,36 L50,112" fill="none"/><path d="M36,50 Q42,56 46,50 M64,50 Q58,56 54,50" fill="none"/>'}
-    </g>`;
+  /* ---- schéma corporel : silhouettes de la fiche ANPS d'origine ---- */
   let curLesion = 'D';
   function renderBodyMap(it) {
     const pal = el('div', { class: 'lespal', role: 'radiogroup', 'aria-label': 'Type de lésion' });
     SCH.lesions.forEach(([c, l, col]) => pal.append(el('button', {
       type: 'button', class: 'lesbtn', 'data-les': c, 'aria-pressed': c === curLesion ? 'true' : 'false', style: '--lc:' + col
     }, el('b', { text: c }), ' ' + l)));
-    const figs = el('div', { class: 'figs' });
-    [['f', 'Face'], ['b', 'Dos']].forEach(([v, name]) => {
-      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-      svg.setAttribute('viewBox', '0 0 100 214'); svg.setAttribute('class', 'bodysvg'); svg.dataset.view = v;
-      svg.innerHTML = BODY_SVG(v) +
-        `<text x="3" y="10" class="side">${v === 'f' ? 'D' : 'G'}</text><text x="97" y="10" text-anchor="end" class="side">${v === 'f' ? 'G' : 'D'}</text><g class="marks"></g>`;
-      figs.append(el('figure', { class: 'fig' }, svg, el('figcaption', { text: name })));
-    });
-    const wrap = el('div', { class: 'bodymap' }, el('span', { class: 'flbl', text: it.l }), pal, figs,
+    const map = el('div', { class: 'bodyimg', id: 'bodyImg' },
+      el('img', { src: 'assets/silhouettes.png', alt: 'Silhouettes face et dos', draggable: 'false' }),
+      el('div', { class: 'marks' }));
+    const wrap = el('div', { class: 'bodymap' }, el('span', { class: 'flbl', text: it.l }), pal, map,
       el('div', { class: 'bm-actions' },
         el('button', { type: 'button', class: 'btn small', 'data-act': 'mark-undo', text: 'Annuler le dernier repère' }),
         el('span', { class: 'hint', text: 'Touchez un repère pour le retirer.' })));
@@ -262,16 +244,13 @@
     return wrap;
   }
   function drawMarks() {
-    document.querySelectorAll('svg.bodysvg').forEach(svg => {
-      const g = svg.querySelector('.marks'); g.innerHTML = '';
-      cur.marks.forEach((m, i) => {
-        if (m.v !== svg.dataset.view) return;
-        const col = (SCH.lesions.find(l => l[0] === m.t) || [, , '#000'])[2];
-        const r = m.t.length > 1 ? 6.5 : 5;
-        g.insertAdjacentHTML('beforeend',
-          `<g class="mk" data-i="${i}"><circle cx="${m.x}" cy="${m.y}" r="${r}" fill="${col}" stroke="#fff" stroke-width="1"/>` +
-          `<text x="${m.x}" y="${m.y + 2.2}" text-anchor="middle" font-size="${m.t.length > 2 ? 4.2 : 5.8}" font-weight="700" fill="#fff">${m.t}</text></g>`);
-      });
+    const g = document.querySelector('#bodyImg .marks'); if (!g) return;
+    g.innerHTML = '';
+    cur.marks = cur.marks.filter(m => m.u != null);   // repères d'un ancien format ignorés
+    cur.marks.forEach((m, i) => {
+      const col = (SCH.lesions.find(l => l[0] === m.t) || [, , '#000'])[2];
+      g.append(el('span', { class: 'mk' + (m.t.length > 1 ? ' long' : ''), 'data-i': i, title: m.t,
+        style: `left:${m.u * 100}%;top:${m.v * 100}%;background:${col}`, text: m.t }));
     });
   }
 
@@ -392,14 +371,15 @@
   });
   function rerenderSurv() { const w = form.querySelector('.survwrap'); w.replaceWith(renderSurv()); }
 
-  // repères sur le schéma corporel
+  // repères sur le schéma corporel (position en fraction de l'image : u, v entre 0 et 1)
   form.addEventListener('pointerup', e => {
-    const svg = e.target.closest && e.target.closest('svg.bodysvg'); if (!svg || !cur || cur.status !== 'draft') return;
+    const box = e.target.closest && e.target.closest('#bodyImg'); if (!box || !cur || cur.status !== 'draft') return;
     const mk = e.target.closest('.mk');
     if (mk) { cur.marks.splice(+mk.dataset.i, 1); drawMarks(); scheduleSave(); return; }
-    const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
-    const p = pt.matrixTransform(svg.getScreenCTM().inverse());
-    cur.marks.push({ v: svg.dataset.view, x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10, t: curLesion });
+    const r = box.getBoundingClientRect();
+    const u = (e.clientX - r.left) / r.width, v = (e.clientY - r.top) / r.height;
+    if (u < 0 || u > 1 || v < 0 || v > 1) return;
+    cur.marks.push({ u: Math.round(u * 1000) / 1000, v: Math.round(v * 1000) / 1000, t: curLesion });
     drawMarks(); scheduleSave();
   });
 
@@ -619,7 +599,7 @@
         detresse_vitale: hasDistress(f) },
       donnees: f.data,
       surveillance: f.surv.filter(r => Object.values(r).some(Boolean)),
-      lesions: f.marks.map(m => ({ vue: m.v === 'f' ? 'face' : 'dos', type: m.t, libelle: (SCH.lesions.find(l => l[0] === m.t) || [])[1], x: m.x, y: m.y })),
+      lesions: f.marks.filter(m => m.u != null).map(m => ({ type: m.t, libelle: (SCH.lesions.find(l => l[0] === m.t) || [])[1], vue: m.u < 0.5 ? 'face' : 'dos', u: m.u, v: m.v })),
       signatures: Object.keys(f.sigs),
       lisible: labelsOf(f),
     };
@@ -687,7 +667,7 @@
       el('section', { class: 'fsec kind-plain' }, el('header', { class: 'sec-head' }, el('h2', { text: 'Structure et valeurs par défaut' })),
         el('div', { class: 'sec-body' },
           el('p', { class: 'help', text: 'Ces valeurs pré-remplissent chaque nouvelle fiche.' }),
-          inp('structure', 'Nom de la structure / association (en-tête du PDF)', { w: 'full' }),
+          inp('structure', 'Nom de la structure / unité', { w: 'full' }),
           el('div', { class: 'grp' }, el('div', { class: 'gitems' }, inp('respDps', 'Responsable DPS'), inp('vpsp', 'VPSP n°', { w: 's' }), inp('infirmerie', 'Infirmerie n°', { w: 's' }))),
           el('div', { class: 'grp' }, el('div', { class: 'gitems' }, inp('prefix', 'Préfixe de numérotation', { w: 's', ph: 'ex. 2026-' }), inp('nextNum', 'Prochain numéro', { w: 's', type: 'number', mode: 'numeric' }))))),
       el('section', { class: 'fsec kind-plain' }, el('header', { class: 'sec-head' }, el('h2', { text: 'Envoi vers un logiciel externe (API)' })),
@@ -707,7 +687,7 @@
             el('label', { class: 'btn', for: 'importFile' }, 'Restaurer une sauvegarde'),
             el('input', { type: 'file', id: 'importFile', accept: 'application/json,.json', hidden: true, onchange: importBackup }),
             el('button', { class: 'btn danger ghost', text: 'Supprimer les fiches envoyées', onclick: purgeSent })),
-          el('p', { class: 'help small', text: 'Modèle de fiche : ' + SCH.version + ' · application v1.0.0' }))),
+          el('p', { class: 'help small', text: 'Modèle de fiche : ' + SCH.version + ' · application v1.1.0' }))),
     );
   }
   async function testApi() {

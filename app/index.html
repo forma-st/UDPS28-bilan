@@ -17,6 +17,7 @@
 <div class="topwrap" id="topwrap">
 <header class="topbar">
   <button class="iconbtn" id="btnBack" hidden aria-label="Retour à la liste">&#8592;</button>
+  <img class="tb-logo" src="assets/logo-anps.png" alt="Association Nationale des Premiers Secours">
   <div class="tb-title">
     <strong id="tbTitle">Fiches bilan</strong>
     <span id="tbSub" class="tb-sub"></span>
@@ -72,11 +73,10 @@
   </div>
 </div>
 <div id="busy" class="busy" hidden><div class="spinner"></div><span id="busyText">Génération du PDF…</span></div>
-<div id="reportHost" aria-hidden="true"></div>
 
-<script src="js/vendor/html2canvas.min.js"></script>
-<script src="js/vendor/jspdf.umd.min.js"></script>
+<script src="js/vendor/pdf-lib.min.js"></script>
 <script src="js/schema.js"></script>
+<script src="js/template-map.js"></script>
 <script src="js/report.js"></script>
 <script src="js/app.js"></script>
 </body>

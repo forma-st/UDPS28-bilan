@@ -9,11 +9,14 @@ Elle fonctionne sur tablette et sur téléphone (Android, iPad, iPhone), sans r�
   suite bilan, gestes complémentaires, surveillance, état civil, prise en charge et devenir, suivi évacuation.
 - Grandes cases cochables au doigt. Les signes de détresse vitale (en rouge sur la fiche) font apparaître une alerte et marquent le bloc concerné.
 - Boutons « maint. » pour inscrire l'heure actuelle (garrot, DSA, début des signes FAST, etc.).
-- Schéma corporel face et dos : on choisit le type de lésion (D, P, B, O, DEF, SE, F) puis on touche le schéma.
+- Schéma corporel : les silhouettes face et dos de la fiche ANPS. On choisit le type de lésion (D, P, B, O, DEF, SE, F) puis on touche la silhouette.
 - Échelle de sévérité 0–10, tableau de surveillance extensible, calcul automatique de l'âge.
 - Signatures au doigt : responsable DPS, relève, IOA ou médecin, matériel laissé.
 - Enregistrement automatique sur l'appareil. Une fiche clôturée passe en lecture seule (on peut la rouvrir).
-- **Export PDF** : 2 pages A4, mise en page proche de la fiche papier. Le PDF se génère sans réseau. Ensuite : Télécharger ou Partager (mail, Drive…).
+- **Export PDF** : c'est la fiche ANPS d'origine (A3 paysage, modèle ANPS/GD/Avril_2024-n°6, logo compris), remplie à l'encre bleue.
+  Les cases sont cochées et les valeurs écrites à leur place exacte. Le PDF se génère sans réseau. Ensuite : Télécharger ou Partager (mail, Drive…).
+  Ce qui ne tient pas sur la fiche part sur une page annexe : textes longs, mesures de surveillance au-delà de la 3ème.
+  Les annexes sont signalées « (suite en annexe) » sur la fiche.
 - **Export JSON** : la fiche au format structuré.
 - **Envoi API** : envoi en HTTPS vers un logiciel externe. Hors ligne, l'envoi est mis en file d'attente et part tout seul au retour du réseau.
 - Sauvegarde et restauration de toutes les fiches (JSON), purge des fiches déjà envoyées.
@@ -84,7 +87,7 @@ La fiche part en `POST` (méthode modifiable), au format `application/json` :
   "fiche": { "id": "…", "numero": "12", "statut": "closed", "cree_le": "ISO8601", "modifie_le": "…", "cloture_le": "…", "detresse_vitale": true },
   "donnees": { "num": "12", "date": "2026-11-14", "heurePec": "14:20", "lieu_public": true, "x_garrot": true, "x_garrot_v": "14:32", "b_fr": "22", "c_pag_s": "135", "c_pag_d": "82", "d_avpu": "A", "nom": "…", "…": "…" },
   "surveillance": [ { "h": "14:40", "fr": "18", "sat": "97", "o2": "", "fc": "88", "pa": "130/80", "t": "", "en": "4", "gly": "", "avpu": "A" } ],
-  "lesions": [ { "vue": "face", "type": "D", "libelle": "Douleur", "x": 55, "y": 196.9 } ],
+  "lesions": [ { "type": "D", "libelle": "Douleur", "vue": "face", "u": 0.083, "v": 0.48 } ],
   "signatures": ["sig_resp", "sig_rec"],
   "lisible": [ { "section": "X — Hémorragie ?", "colonne": "Gestes effectués", "cle": "x_garrot", "libelle": "Garrot posé à", "valeur": "14:32", "detresse": false } ],
   "pdf": { "nom": "fiche-bilan-12-2026-11-14.pdf", "type": "application/pdf", "base64": "…" }
@@ -94,7 +97,7 @@ La fiche part en `POST` (méthode modifiable), au format `application/json` :
 - `donnees` contient toutes les clés de la fiche. La liste complète est dans `app/js/schema.js` : une case = un booléen ; une case avec saisie = la clé plus `<clé>_v` ; une tension = `<clé>_s` et `<clé>_d`.
 - `lisible` liste uniquement les éléments renseignés, avec leur libellé. C'est la forme la plus simple à reprendre dans un autre logiciel.
 - Le serveur doit répondre en `2xx`. Toute autre réponse laisse la fiche en file d'attente.
-- Le schéma corporel occupe une zone de 100 × 214 unités par vue (face ou dos) : `x` et `y` sont exprimés dans ces unités.
+- Lésions : `u` et `v` sont la position sur l'image des silhouettes de la fiche (de 0 à 1, depuis le coin haut gauche). La moitié gauche est la face, la droite le dos.
 
 ### Points à valider avec l'éditeur
 
@@ -127,7 +130,17 @@ Une passerelle hébergée sur le même domaine que l'application évite ce probl
 | `app/index.html` | page de l'application |
 | `app/js/schema.js` | définition de tous les champs de la fiche (à modifier pour faire évoluer la fiche) |
 | `app/js/app.js` | formulaire, enregistrement, export JSON, envoi API, réglages |
-| `app/js/report.js` | mise en page et génération du PDF |
-| `app/js/vendor/` | jsPDF 2.5.1 et html2canvas 1.4.1 (embarqués pour le hors ligne, licence MIT) |
+| `app/js/report.js` | remplissage de la fiche ANPS d'origine (PDF) |
+| `app/js/template-map.js` | position de chaque case et de chaque champ sur la fiche d'origine (extraite du PDF) |
+| `app/assets/` | fiche ANPS d'origine (PDF modèle), logo ANPS, silhouettes |
+| `app/js/vendor/` | pdf-lib 1.17.1 (embarqué pour le hors ligne, licence MIT) |
 | `app/sw.js` | cache hors ligne |
 | `app/manifest.webmanifest`, `app/icons/` | installation sur l'écran d'accueil |
+
+## Changer de version de la fiche ANPS
+
+Si l'ANPS publie un nouveau modèle, deux étapes :
+1. Remplacer `app/assets/fiche-anps-2024.pdf`.
+2. Régénérer `app/js/template-map.js`, qui contient les positions des cases et des champs.
+
+Ces positions ont été extraites automatiquement du calque texte du PDF : chaque case « □ » et chaque libellé suivi de pointillés.

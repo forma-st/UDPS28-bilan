@@ -28,7 +28,7 @@
         F('vpsp', 'VPSP n°', 'text', { w: 's' }),
         F('infirmerie', 'Infirmerie n°', 'text', { w: 's' }),
       ]),
-      F('adresse', 'Adresse de prise en charge', 'text', { w: 'full' }),
+      G(null, [F('adresse', 'Adresse de prise en charge', 'text', { w: 'l' }), F('cpPec', 'Code postal', 'text', { w: 's', mode: 'numeric', max: 5 })]),
     ]
   });
 
@@ -105,7 +105,7 @@
         C('c_abdo', 'Abdomen douloureux', { red: 1 }), C('c_bassin', 'Bassin douloureux', { red: 1 }),
         C('c_paleur', 'Pâleur'), C('c_marbr', 'Marbrures'), C('c_thorax', 'Douleur thoracique', { red: 1 })],
       c4: [F('c_fc', 'FC', 'number', { suf: '/min', w: 's' }), C('c_regulier', 'Régulier'), C('c_bienfrap', 'Bien frappé'),
-        C('c_sym', 'Symétrique'), PA('c_pag', 'PA gauche'), PA('c_pad', 'PA droite')],
+        C('c_sym', 'Symétrique'), PA('c_pag', 'PA gauche'), PA('c_pad', 'PA droite'), F('c_debit', 'Débit', 'number', { suf: 'L/min', w: 's' })],
       g: [C('c_rcp', 'RCP'), CI('c_dsa', 'DSA posé à', 'time', { now: true }), F('c_chocs', 'Nb de chocs', 'number', { w: 's' }),
         F('c_arret', 'Arrêt RCP à', 'time', { w: 's', now: true }), F('c_noflow', 'Durée no flow', 'text', { w: 's', ph: 'min' }),
         C('c_pelv', 'Ceinture pelvienne'), C('c_allonge', 'Allongé')],
