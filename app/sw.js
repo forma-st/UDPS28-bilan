@@ -1,8 +1,8 @@
 /* Service worker : met l'application en cache pour un fonctionnement 100 % hors ligne. */
-const CACHE = 'fiche-bilan-v1.1.0';
+const CACHE = 'fiche-bilan-v1.2.0';
 const ASSETS = [
   './', './index.html', './manifest.webmanifest', './css/app.css',
-  './js/schema.js', './js/template-map.js', './js/report.js', './js/app.js', './js/vendor/pdf-lib.min.js',
+  './js/schema.js', './js/burn-zones.js', './js/template-map.js', './js/report.js', './js/app.js', './js/vendor/pdf-lib.min.js',
   './assets/fiche-anps-2024.pdf', './assets/logo-anps.png', './assets/silhouettes.png',
   './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png'
 ];

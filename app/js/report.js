@@ -73,7 +73,7 @@
     }
     function wrap(str, maxW, size) {
       const out = [];
-      for (const para of clean(str).split(/\n/)) {
+      for (const para of String(str ?? '').split(/\r?\n/).map(x => clean(x))) {
         let cur = '';
         for (const w of para.split(/\s+/)) {
           const t = cur ? cur + ' ' + w : w;
@@ -171,6 +171,21 @@
     if (D.pl_sev !== '' && D.pl_sev != null) {
       const i = +D.pl_sev, cx = [714.5, 741.6, 768.75, 795.6, 822.75, 849.85, 877, 904.1, 931.3, 958.4, 985.75][i];
       if (cx) page.drawRectangle({ x: cx - 9.5, y: H - 319.9 - 12, width: 19, height: 13, borderColor: INK, borderWidth: 2.2 });
+    }
+    // surface brûlée peinte (grille de cellules de 2×2 px de l'image des silhouettes)
+    if (fiche.burn && window.FB_BURN) {
+      const BZ = window.FB_BURN, raw = atob(fiche.burn), cw = 130.6 * 2 / 212, ch = 164.4 * 2 / 267;
+      const on = i => (raw.charCodeAt(i >> 3) >> (i & 7)) & 1;
+      let path = '';   // un seul tracé : pas de raccords visibles entre les cellules
+      for (let gy = 0; gy < BZ.h; gy++) {
+        let gx = 0;
+        while (gx < BZ.w) {
+          if (!on(gy * BZ.w + gx)) { gx++; continue; }
+          const s = gx; while (gx < BZ.w && on(gy * BZ.w + gx)) gx++;
+          path += `M${(s * cw).toFixed(2)} ${(gy * ch).toFixed(2)}H${(gx * cw).toFixed(2)}V${((gy + 1) * ch).toFixed(2)}H${(s * cw).toFixed(2)}Z`;
+        }
+      }
+      if (path) page.drawSvgPath(path, { x: 625.8, y: H - 150, color: rgb(0.92, 0.35, 0.05), opacity: 0.5, borderWidth: 0 });
     }
     // lésions sur les silhouettes d'origine (image 625.8,150 → 756.4,314.4)
     for (const m of fiche.marks || []) {

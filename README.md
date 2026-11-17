@@ -10,6 +10,19 @@ Elle fonctionne sur tablette et sur téléphone (Android, iPad, iPhone), sans r�
 - Grandes cases cochables au doigt. Les signes de détresse vitale (en rouge sur la fiche) font apparaître une alerte et marquent le bloc concerné.
 - Boutons « maint. » pour inscrire l'heure actuelle (garrot, DSA, début des signes FAST, etc.).
 - Schéma corporel : les silhouettes face et dos de la fiche ANPS. On choisit le type de lésion (D, P, B, O, DEF, SE, F) puis on touche la silhouette.
+- **Surface brûlée** : si « Brûlure » est cochée dans le 1er regard (thermique, électrique ou chimique), le type de lésion « B » devient un pinceau.
+  On peint au doigt les zones brûlées, face et dos (pinceau fin, pinceau large, gomme).
+  - L'application calcule la surface avec la **règle des 9 de Wallace** :
+    - tête et cou 9 % ;
+    - chaque membre supérieur 9 % ;
+    - tronc antérieur 18 % ;
+    - tronc postérieur 18 % ;
+    - chaque membre inférieur 18 % ;
+    - périnée 1 %.
+  - Chaque zone compte au prorata de sa partie peinte. Le résultat est arrondi à 0,5 %.
+  - Le résultat s'inscrit en tête des « Commentaires libres » et se met à jour à chaque coup de pinceau. Le reste du commentaire n'est pas touché.
+  - La zone peinte apparaît aussi sur le PDF.
+  - En dessous de 15 ans, une mention rappelle que la règle est établie pour l'adulte.
 - Échelle de sévérité 0–10, tableau de surveillance extensible, calcul automatique de l'âge.
 - Signatures au doigt : responsable DPS, relève, IOA ou médecin, matériel laissé.
 - Enregistrement automatique sur l'appareil. Une fiche clôturée passe en lecture seule (on peut la rouvrir).
@@ -87,6 +100,7 @@ La fiche part en `POST` (méthode modifiable), au format `application/json` :
   "fiche": { "id": "…", "numero": "12", "statut": "closed", "cree_le": "ISO8601", "modifie_le": "…", "cloture_le": "…", "detresse_vitale": true },
   "donnees": { "num": "12", "date": "2026-11-14", "heurePec": "14:20", "lieu_public": true, "x_garrot": true, "x_garrot_v": "14:32", "b_fr": "22", "c_pag_s": "135", "c_pag_d": "82", "d_avpu": "A", "nom": "…", "…": "…" },
   "surveillance": [ { "h": "14:40", "fr": "18", "sat": "97", "o2": "", "fc": "88", "pa": "130/80", "t": "", "en": "4", "gly": "", "avpu": "A" } ],
+  "brulure": { "methode": "règle des 9 de Wallace", "surface_pct": 22.5, "detail": { "tronc antérieur": 18, "membre sup. droit": 4.5 }, "grille": { "largeur": 106, "hauteur": 133, "cellules_base64": "…" } },
   "lesions": [ { "type": "D", "libelle": "Douleur", "vue": "face", "u": 0.083, "v": 0.48 } ],
   "signatures": ["sig_resp", "sig_rec"],
   "lisible": [ { "section": "X — Hémorragie ?", "colonne": "Gestes effectués", "cle": "x_garrot", "libelle": "Garrot posé à", "valeur": "14:32", "detresse": false } ],
@@ -131,6 +145,7 @@ Une passerelle hébergée sur le même domaine que l'application évite ce probl
 | `app/js/schema.js` | définition de tous les champs de la fiche (à modifier pour faire évoluer la fiche) |
 | `app/js/app.js` | formulaire, enregistrement, export JSON, envoi API, réglages |
 | `app/js/report.js` | remplissage de la fiche ANPS d'origine (PDF) |
+| `app/js/burn-zones.js` | découpage des silhouettes en zones de la règle des 9 (une cellule = 2×2 px de l'image) |
 | `app/js/template-map.js` | position de chaque case et de chaque champ sur la fiche d'origine (extraite du PDF) |
 | `app/assets/` | fiche ANPS d'origine (PDF modèle), logo ANPS, silhouettes |
 | `app/js/vendor/` | pdf-lib 1.17.1 (embarqué pour le hors ligne, licence MIT) |

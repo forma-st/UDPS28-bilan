@@ -233,15 +233,122 @@
     SCH.lesions.forEach(([c, l, col]) => pal.append(el('button', {
       type: 'button', class: 'lesbtn', 'data-les': c, 'aria-pressed': c === curLesion ? 'true' : 'false', style: '--lc:' + col
     }, el('b', { text: c }), ' ' + l)));
+    const cv = el('canvas', { class: 'burncv', id: 'burnCv', width: BZ.w * 4, height: BZ.h * 4 });
     const map = el('div', { class: 'bodyimg', id: 'bodyImg' },
       el('img', { src: 'assets/silhouettes.png', alt: 'Silhouettes face et dos', draggable: 'false' }),
-      el('div', { class: 'marks' }));
-    const wrap = el('div', { class: 'bodymap' }, el('span', { class: 'flbl', text: it.l }), pal, map,
-      el('div', { class: 'bm-actions' },
+      cv, el('div', { class: 'marks' }));
+    // outils de la surface brûlée (visibles quand on peint)
+    const tools = el('div', { class: 'burntools', id: 'burnTools', hidden: true },
+      el('div', { class: 'radio', role: 'radiogroup', 'aria-label': 'Outil' },
+        el('button', { type: 'button', class: 'rbtn', 'data-brush': 'fin', 'aria-pressed': burnTool === 'fin' ? 'true' : 'false', text: 'Pinceau fin' }),
+        el('button', { type: 'button', class: 'rbtn', 'data-brush': 'large', 'aria-pressed': burnTool === 'large' ? 'true' : 'false', text: 'Pinceau large' }),
+        el('button', { type: 'button', class: 'rbtn', 'data-brush': 'gomme', 'aria-pressed': burnTool === 'gomme' ? 'true' : 'false', text: 'Gomme' })),
+      el('button', { type: 'button', class: 'btn small', 'data-act': 'burn-clear', text: 'Effacer la surface brûlée' }));
+    const wrap = el('div', { class: 'bodymap' }, el('span', { class: 'flbl', text: it.l }), pal,
+      el('p', { class: 'burnhint', id: 'burnHint', hidden: true }), tools, map,
+      el('p', { class: 'burnres', id: 'burnRes', hidden: true }),
+      el('div', { class: 'bm-actions', id: 'markActions' },
         el('button', { type: 'button', class: 'btn small', 'data-act': 'mark-undo', text: 'Annuler le dernier repère' }),
         el('span', { class: 'hint', text: 'Touchez un repère pour le retirer.' })));
-    setTimeout(drawMarks);
+    bindBurnCanvas(cv);
+    setTimeout(() => { drawMarks(); drawBurn(); syncBurnUI(); });
     return wrap;
+  }
+
+  /* ---- surface brûlée : peinture sur la silhouette + règle des 9 de Wallace ---- */
+  const BZ = window.FB_BURN;
+  const ZONE = Uint8Array.from(BZ.cells, c => parseInt(c, 16) || 0);
+  let burnTool = 'fin', burnBits = null, burnFor = null;
+  const hasBurnSituation = () => !!(cur && (cur.data.brul_therm || cur.data.brul_elec || cur.data.brul_chim));
+  const paintMode = () => curLesion === 'B' && hasBurnSituation() && cur.status === 'draft';
+  function bits() {
+    if (burnFor !== cur.id) {
+      burnFor = cur.id; burnBits = new Uint8Array(BZ.w * BZ.h);
+      if (cur.burn) { try { const raw = atob(cur.burn); for (let i = 0; i < burnBits.length; i++) burnBits[i] = (raw.charCodeAt(i >> 3) >> (i & 7)) & 1; } catch { } }
+    }
+    return burnBits;
+  }
+  function saveBits() {
+    const b = bits(), bytes = new Uint8Array(Math.ceil(b.length / 8));
+    let any = false;
+    for (let i = 0; i < b.length; i++) if (b[i]) { bytes[i >> 3] |= 1 << (i & 7); any = true; }
+    let str = ''; for (const x of bytes) str += String.fromCharCode(x);
+    cur.burn = any ? btoa(str) : '';
+  }
+  // résultat : % par zone = poids de la zone × part de la zone peinte
+  function burnCalc(b) {
+    const tot = {}, hit = {};
+    for (let i = 0; i < ZONE.length; i++) { const z = ZONE[i]; if (!z) continue; tot[z] = (tot[z] || 0) + 1; if (b[i]) hit[z] = (hit[z] || 0) + 1; }
+    const pct = z => tot[z] ? BZ.zones[z][1] * (hit[z] || 0) / tot[z] : 0;
+    const regions = BZ.regions.map(([lab, zs]) => [lab, zs.reduce((a, z) => a + pct(z), 0)]).filter(r => r[1] > 0);
+    return { total: regions.reduce((a, r) => a + r[1], 0), regions };
+  }
+  const fmtPct = v => { const r = Math.max(0.5, Math.round(v * 2) / 2); return String(r).replace('.', ','); };
+  const BURN_PREFIX = 'Surface brûlée estimée (règle des 9 de Wallace)';
+  function burnSentence(res) {
+    if (!res.total) return '';
+    let s = BURN_PREFIX + ' : ' + fmtPct(res.total) + ' % — ' + res.regions.map(([l, v]) => l + ' ' + fmtPct(v) + ' %').join(', ') + '.';
+    const age = parseInt(cur.data.age, 10);
+    if (age < 15) s += ' Victime de moins de 15 ans : règle établie pour l\'adulte, résultat indicatif.';
+    return s;
+  }
+  // écrit / met à jour la ligne du résultat dans « Commentaires libres »
+  function updateBurnComment() {
+    const res = burnCalc(bits()), line = burnSentence(res);
+    const lines = (cur.data.com || '').split('\n').filter(l => !l.startsWith(BURN_PREFIX));
+    if (line) lines.unshift(line);
+    cur.data.com = lines.join('\n').replace(/^\n+|\n+$/g, '');
+    const ta = $('#f_com'); if (ta) ta.value = cur.data.com;
+    const out = $('#burnRes');
+    if (out) { out.hidden = !line; out.textContent = line ? 'Surface brûlée : ' + fmtPct(res.total) + ' % — reporté dans « Commentaires libres ».' : ''; }
+  }
+  function drawBurn() {
+    const cv = $('#burnCv'); if (!cv) return;
+    const ctx = cv.getContext('2d'), b = bits(), k = cv.width / BZ.w;
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    if (paintMode()) {   // zones du corps légèrement teintées pour guider le pinceau
+      ctx.fillStyle = 'rgba(37, 87, 167, 0.07)';
+      for (let i = 0; i < ZONE.length; i++) if (ZONE[i]) ctx.fillRect((i % BZ.w) * k, Math.floor(i / BZ.w) * k, k, k);
+    }
+    ctx.fillStyle = 'rgba(234, 88, 12, 0.6)';
+    for (let i = 0; i < b.length; i++) if (b[i]) ctx.fillRect((i % BZ.w) * k, Math.floor(i / BZ.w) * k, k + 0.3, k + 0.3);
+  }
+  function syncBurnUI() {
+    const map = $('#bodyImg'); if (!map) return;
+    const on = paintMode();
+    map.classList.toggle('painting', on);
+    $('#burnTools').hidden = !on;
+    $('#markActions').hidden = on;
+    const hint = $('#burnHint');
+    if (curLesion === 'B' && cur.status === 'draft') {
+      hint.hidden = false;
+      hint.textContent = on ? 'Peignez au doigt les surfaces brûlées, face et dos. Le pourcentage est calculé avec la règle des 9 de Wallace.'
+        : 'Pour peindre la surface brûlée, cochez d\'abord « Brûlure » (thermique, électrique ou chimique) dans le 1er regard. Sinon, « B » place un repère.';
+    } else hint.hidden = true;
+    const res = burnCalc(bits()), out = $('#burnRes');
+    out.hidden = !res.total; if (res.total) out.textContent = 'Surface brûlée : ' + fmtPct(res.total) + ' % — reporté dans « Commentaires libres ».';
+    drawBurn();
+  }
+  function bindBurnCanvas(cv) {
+    let down = false, last = null;
+    const cell = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * BZ.w, (e.clientY - r.top) / r.height * BZ.h]; };
+    const dab = ([x, y]) => {
+      const rad = burnTool === 'large' ? 4 : burnTool === 'gomme' ? 3 : 1.6, v = burnTool === 'gomme' ? 0 : 1, b = bits();
+      for (let gy = Math.floor(y - rad); gy <= y + rad; gy++) for (let gx = Math.floor(x - rad); gx <= x + rad; gx++) {
+        if (gx < 0 || gy < 0 || gx >= BZ.w || gy >= BZ.h) continue;
+        if ((gx + 0.5 - x) ** 2 + (gy + 0.5 - y) ** 2 > rad * rad) continue;
+        const i = gy * BZ.w + gx; if (ZONE[i]) b[i] = v;
+      }
+    };
+    const stroke = p => {
+      if (last) { const n = Math.ceil(Math.hypot(p[0] - last[0], p[1] - last[1]) / 0.8); for (let s = 1; s <= n; s++) dab([last[0] + (p[0] - last[0]) * s / n, last[1] + (p[1] - last[1]) * s / n]); }
+      else dab(p);
+      last = p; drawBurn();
+    };
+    cv.addEventListener('pointerdown', e => { if (!paintMode()) return; down = true; last = null; cv.setPointerCapture(e.pointerId); stroke(cell(e)); e.preventDefault(); });
+    cv.addEventListener('pointermove', e => { if (down) { stroke(cell(e)); e.preventDefault(); } });
+    const end = () => { if (!down) return; down = false; last = null; saveBits(); updateBurnComment(); scheduleSave(); };
+    cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
   }
   function drawMarks() {
     const g = document.querySelector('#bodyImg .marks'); if (!g) return;
@@ -330,6 +437,8 @@
     }
     if (k === 'dob') autoAge();
     if (t.type === 'checkbox') refreshDistress();
+    if (/^brul_(therm|elec|chim)$/.test(k)) syncBurnUI();
+    if (k === 'age' || k === 'dob') { if (cur.burn) updateBurnComment(); }
     scheduleSave();
   });
   form.addEventListener('change', e => { if (e.target.type === 'checkbox') { refreshDistress(); scheduleSave(); } });
@@ -356,12 +465,18 @@
     if (b.dataset.les) {
       curLesion = b.dataset.les;
       form.querySelectorAll('[data-les]').forEach(x => x.setAttribute('aria-pressed', x.dataset.les === curLesion ? 'true' : 'false'));
+      syncBurnUI(); return;
+    }
+    if (b.dataset.brush) {
+      burnTool = b.dataset.brush;
+      form.querySelectorAll('[data-brush]').forEach(x => x.setAttribute('aria-pressed', x.dataset.brush === burnTool ? 'true' : 'false'));
       return;
     }
     switch (b.dataset.act) {
       case 'surv-add': cur.surv.push({ h: nowHM() }); rerenderSurv(); scheduleSave(); break;
       case 'surv-del': cur.surv.splice(+b.dataset.i, 1); rerenderSurv(); scheduleSave(); break;
       case 'mark-undo': cur.marks.pop(); drawMarks(); scheduleSave(); break;
+      case 'burn-clear': bits().fill(0); saveBits(); updateBurnComment(); drawBurn(); scheduleSave(); break;
       case 'sig-clear': {
         delete cur.sigs[b.dataset.k];
         const c = form.querySelector(`canvas[data-sig="${b.dataset.k}"]`);
@@ -373,7 +488,7 @@
 
   // repères sur le schéma corporel (position en fraction de l'image : u, v entre 0 et 1)
   form.addEventListener('pointerup', e => {
-    const box = e.target.closest && e.target.closest('#bodyImg'); if (!box || !cur || cur.status !== 'draft') return;
+    const box = e.target.closest && e.target.closest('#bodyImg'); if (!box || !cur || cur.status !== 'draft' || paintMode()) return;
     const mk = e.target.closest('.mk');
     if (mk) { cur.marks.splice(+mk.dataset.i, 1); drawMarks(); scheduleSave(); return; }
     const r = box.getBoundingClientRect();
@@ -442,7 +557,7 @@
     if (h.startsWith('f=')) {
       const f = loadFiche(h.slice(2));
       if (!f) { location.hash = ''; return; }
-      cur = f; f.surv = f.surv || []; f.marks = f.marks || []; f.sigs = f.sigs || {};
+      cur = f; burnFor = null; f.surv = f.surv || []; f.marks = f.marks || []; f.sigs = f.sigs || {};
       show('viewEdit'); renderForm(); updateTitle();
     } else if (h === 'reglages') {
       flush(); cur = null; show('viewSettings'); renderSettings();
@@ -600,11 +715,20 @@
       donnees: f.data,
       surveillance: f.surv.filter(r => Object.values(r).some(Boolean)),
       lesions: f.marks.filter(m => m.u != null).map(m => ({ type: m.t, libelle: (SCH.lesions.find(l => l[0] === m.t) || [])[1], vue: m.u < 0.5 ? 'face' : 'dos', u: m.u, v: m.v })),
+      brulure: f.burn ? burnPayload(f) : null,
       signatures: Object.keys(f.sigs),
       lisible: labelsOf(f),
     };
     if (pdfB64) p.pdf = { nom: fileBase(f) + '.pdf', type: 'application/pdf', base64: pdfB64 };
     return p;
+  }
+  function burnPayload(f) {
+    const b = new Uint8Array(BZ.w * BZ.h), raw = atob(f.burn);
+    for (let i = 0; i < b.length; i++) b[i] = (raw.charCodeAt(i >> 3) >> (i & 7)) & 1;
+    const r = burnCalc(b);
+    return { methode: 'règle des 9 de Wallace', surface_pct: Math.round(r.total * 10) / 10,
+      detail: Object.fromEntries(r.regions.map(([l, v]) => [l, Math.round(v * 10) / 10])),
+      grille: { largeur: BZ.w, hauteur: BZ.h, cellules_base64: f.burn } };
   }
   const blobToB64 = b => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(b); });
 
@@ -687,7 +811,7 @@
             el('label', { class: 'btn', for: 'importFile' }, 'Restaurer une sauvegarde'),
             el('input', { type: 'file', id: 'importFile', accept: 'application/json,.json', hidden: true, onchange: importBackup }),
             el('button', { class: 'btn danger ghost', text: 'Supprimer les fiches envoyées', onclick: purgeSent })),
-          el('p', { class: 'help small', text: 'Modèle de fiche : ' + SCH.version + ' · application v1.1.0' }))),
+          el('p', { class: 'help small', text: 'Modèle de fiche : ' + SCH.version + ' · application v1.2.0' }))),
     );
   }
   async function testApi() {
